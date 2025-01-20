@@ -458,6 +458,49 @@ class CustomerRequestViewset(viewsets.ViewSet):
         return Response(dict_response)
     
     
+class CustomerRequestViewset(viewsets.ViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def list(self,request):
+        customer_request=CustomerRequest.objects.all()
+        serializer=CustomerRequestSerializer(customer_request,many=True,context={"request":request})
+        response_dict={"error":False,"message":"All Customer Request Data","data":serializer.data}
+        return Response(response_dict)
+
+    def create(self,request):
+        try:
+            serializer=CustomerRequestSerializer(data=request.data,context={"request":request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            dict_response={"error":False,"message":"Customer Request Data Save Successfully"}
+        except:
+            dict_response={"error":True,"message":"Error During Saving Customer Request Data"}
+        return Response(dict_response)
+
+    def retrieve(self, request, pk=None):
+        queryset = CustomerRequest.objects.all()
+        customer_request = get_object_or_404(queryset, pk=pk)
+        serializer = CustomerRequestSerializer(customer_request, context={"request": request})
+
+        serializer_data = serializer.data
+
+        return Response({"error": False, "message": "Single Data Fetch", "data": serializer_data})
+
+    def update(self,request,pk=None):
+        try:
+            queryset=CustomerRequest.objects.all()
+            customer_request=get_object_or_404(queryset,pk=pk)
+            serializer=CustomerRequestSerializer(customer_request,data=request.data,context={"request":request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            dict_response={"error":False,"message":"Successfully Updated Customer Data"}
+        except:
+            dict_response={"error":True,"message":"Error During Updating Customer Data"}
+
+        return Response(dict_response)
+    
+    
 class HomeApiViewset(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -683,3 +726,66 @@ from .serializers import CustomTokenObtainPairSerializer
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+# ***********************************
+# For Stripe
+# ***********************************
+
+import stripe
+from django.conf import settings
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from DjangoMedicalApp.models import CompanyAccount, Payment
+
+stripe.api_key = settings.STRIPE_TEST_SECRET_KEY
+
+@api_view(['POST'])
+def create_payment_intent(request):
+    try:
+        amount = int(float(request.data.get('amount')))
+        company_id = int(request.data.get('company_id'))
+        
+        intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency='inr',
+            metadata={'company_id': company_id}
+        )
+        
+        return Response({
+            'clientSecret': intent.client_secret,
+            'payment_intent_id': intent.id
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+def handle_payment_success(request):
+    try:
+        payment_intent_id = request.data.get('paymentIntentId')
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if payment_intent.status == 'succeeded':
+            company_id = payment_intent.metadata.get('company_id')
+            amount = payment_intent.amount / 100  # Convert from cents to rupees
+            
+            # Create CompanyAccount entry
+            company_account = CompanyAccount.objects.create(
+                company_id_id=company_id,
+                transaction_type='Credit',
+                transaction_amt=str(amount),
+                transaction_date=datetime.now().date(),
+                payment_mode='Card'
+            )
+            
+            # Create Payment entry
+            Payment.objects.create(
+                payment_intent_id=payment_intent_id,
+                company_account=company_account,
+                amount=amount,
+                status='success'
+            )
+            
+            return Response({'status': 'success'})
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
