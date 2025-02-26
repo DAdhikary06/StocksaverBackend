@@ -505,33 +505,23 @@ class HomeApiViewset(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def list(self,request):
-        customer_request=CustomerRequest.objects.all()
-        customer_request_serializer=CustomerRequestSerializer(customer_request,many=True,context={"request":request})
+    def list(self, request):
+        customer_request = CustomerRequest.objects.all()
+        customer_request_serializer = CustomerRequestSerializer(customer_request, many=True, context={"request": request})
 
+        bill_count = Bill.objects.all()
+        bill_count_serializer = BillSerializer(bill_count, many=True, context={"request": request})
 
-        bill_count=Bill.objects.all()
-        bill_count_serializer=BillSerializer(bill_count,many=True,context={"request":request})
+        medicine_count = Medicine.objects.all()
+        medicine_count_serializer = MedicineSerliazer(medicine_count, many=True, context={"request": request})
 
-        medicine_count=Medicine.objects.all()
-        medicine_count_serializer=MedicineSerliazer(medicine_count,many=True,context={"request":request})
+        company_count = Company.objects.all()
+        company_count_serializer = CompanySerliazer(company_count, many=True, context={"request": request})
 
-        company_count=Company.objects.all()
-        company_count_serializer=CompanySerliazer(company_count,many=True,context={"request":request})
+        employee_count = Employee.objects.all()
+        employee_count_serializer = EmployeeSerializer(employee_count, many=True, context={"request": request})
 
-        employee_count=Employee.objects.all()
-        employee_count_serializer=EmployeeSerializer(employee_count,many=True,context={"request":request})
-
-        # bill_details=BillDetails.objects.all()
-        # profit_amt=0
-        # sell_amt=0
-        # buy_amt=0
-        # for bill in bill_details:
-        #     buy_amt=float(buy_amt+float(bill.medicine_id.buy_price))*int(bill.qty)
-        #     sell_amt=float(sell_amt+float(bill.medicine_id.sell_price))*int(bill.qty)
-
-        # profit_amt=sell_amt-buy_amt
-
+        # Calculate total buy and sell amounts for all bill details
         bill_details = BillDetails.objects.all()
         profit_amt = 0
         sell_amt = 0
@@ -539,45 +529,27 @@ class HomeApiViewset(viewsets.ViewSet):
 
         for bill in bill_details:
             qty = int(bill.qty)
-            buy_price = float(bill.medicine_id.buy_price)
-            sell_price = float(bill.medicine_id.sell_price)
+            buy_price = float(bill.medicine_id.buy_price) if bill.medicine_id.buy_price else 0
+            sell_price = float(bill.medicine_id.sell_price) if bill.medicine_id.sell_price else 0
 
             buy_amt += buy_price * qty
             sell_amt += sell_price * qty
 
         profit_amt = sell_amt - buy_amt
 
+        customer_request_pending = CustomerRequest.objects.filter(status=False)
+        customer_request_pending_serializer = CustomerRequestSerializer(customer_request_pending, many=True, context={"request": request})
 
-        customer_request_pending=CustomerRequest.objects.filter(status=False)
-        customer_request_pending_serializer=CustomerRequestSerializer(customer_request_pending,many=True,context={"request":request})
+        customer_request_completed = CustomerRequest.objects.filter(status=True)
+        customer_request_completed_serializer = CustomerRequestSerializer(customer_request_completed, many=True, context={"request": request})
 
-        customer_request_completed=CustomerRequest.objects.filter(status=True)
-        customer_request_completed_serializer=CustomerRequestSerializer(customer_request_completed,many=True,context={"request":request})
-
-        # current_date=datetime.today().strftime("%Y-%m-%d")
-        # current_date1=datetime.today()
-        # current_date_7days=current_date1+timedelta(days=7)
-        # current_date_7days=current_date_7days.strftime("%Y-%m-%d")
-        # bill_details_today=BillDetails.objects.filter(added_on__date=current_date)
-        # profit_amt_today=0
-        # sell_amt_today=0
-        # buy_amt_today=0
-        # for bill in bill_details_today:
-        #     buy_amt_today=float(buy_amt_today+float(bill.medicine_id.buy_price))*int(bill.qty)
-        #     sell_amt_today=float(sell_amt_today+float(bill.medicine_id.sell_price))*int(bill.qty)
-
-
-        # profit_amt_today=sell_amt_today-buy_amt_today
-
-
-# Get the current date and the date 7 days from now
-        current_date = datetime.today().date()  # Use .date() to get just the date part
-        current_date_7days = current_date + timedelta(days=7)
+        # Get today's date
+        current_date = datetime.today().date()
 
         # Query for bill details added today
         bill_details_today = BillDetails.objects.filter(added_on__date=current_date)
 
-        # Initialize profit, sell, and buy amounts
+        # Initialize today's profit, sell, and buy amounts
         profit_amt_today = 0
         sell_amt_today = 0
         buy_amt_today = 0
@@ -585,8 +557,8 @@ class HomeApiViewset(viewsets.ViewSet):
         # Calculate buy and sell amounts for today's bills
         for bill in bill_details_today:
             qty = int(bill.qty)
-            buy_price = float(bill.medicine_id.buy_price)
-            sell_price = float(bill.medicine_id.sell_price)
+            buy_price = float(bill.medicine_id.buy_price) if bill.medicine_id.buy_price else 0
+            sell_price = float(bill.medicine_id.sell_price) if bill.medicine_id.sell_price else 0
 
             buy_amt_today += buy_price * qty
             sell_amt_today += sell_price * qty
@@ -594,13 +566,12 @@ class HomeApiViewset(viewsets.ViewSet):
         # Calculate profit amount for today
         profit_amt_today = sell_amt_today - buy_amt_today
 
+        # Get medicines expiring in the next 7 days
+        current_date_7days = current_date + timedelta(days=7)
+        medicine_expire = Medicine.objects.filter(expire_date__range=[current_date, current_date_7days])
+        medicine_expire_serializer = MedicineSerliazer(medicine_expire, many=True, context={"request": request})
 
-        medicine_expire=Medicine.objects.filter(expire_date__range=[current_date,current_date_7days])
-        medicine_expire_serializer=MedicineSerliazer(medicine_expire,many=True,context={"request":request})
-
-       
-
-        # Get distinct dates from BillDetails
+        # Get distinct dates from BillDetails for charts
         bill_dates = BillDetails.objects.values("added_on__date").distinct()
 
         profit_chart_list = []
@@ -644,13 +615,13 @@ class HomeApiViewset(viewsets.ViewSet):
             "medicine_count": len(medicine_count_serializer.data),
             "company_count": len(company_count_serializer.data),
             "employee_count": len(employee_count_serializer.data),
-            "sell_total": sell_amt,  # Ensure these variables are defined earlier in your code
+            "sell_total": sell_amt,
             "buy_total": buy_amt,
             "profit_total": profit_amt,
             "request_pending": len(customer_request_pending_serializer.data),
             "request_completed": len(customer_request_completed_serializer.data),
-            "profit_amt_today": profit_amt_today,  # Ensure these variables are defined earlier in your code
-            "sell_amt_today": sell_amt_today,  # Ensure these variables are defined earlier in your code
+            "profit_amt_today": profit_amt_today,
+            "sell_amt_today": sell_amt_today,
             "medicine_expire_serializer_data": len(medicine_expire_serializer.data),
             "sell_chart": sell_chart_list,
             "buy_chart": buy_chart_list,
