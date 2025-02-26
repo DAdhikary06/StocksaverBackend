@@ -51,7 +51,7 @@ urlpatterns = [
     path('api/companyonly/',views.CompanyOnlyViewSet.as_view(),name="companyonly"), # All company data only
     path('api/employee_bankby_id/<str:employee_id>',views.EmployeeBankByEIDViewSet.as_view(),name="employee_bankby_id"), # single employee bank details
     path('api/employee_salaryby_id/<str:employee_id>',views.EmployeeSalaryByEIDViewSet.as_view(),name="employee_salaryby_id"), # single employee salary details
-     #*********************** Stripe Gateway **************************#
+    # *********************** Stripe Gateway ***************************** #
     path('create-payment-intent/', views.create_payment_intent, name='create_payment_intent'),
     path('handle-payment-success/', views.handle_payment_success, name='handle_payment_success'),
 ]
